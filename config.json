@@ -1,0 +1,21 @@
+{
+  "click_button": "left",
+  "click_type": "double",
+  "interval_ms": 200,
+  "random_jitter_ms": 4,
+  "position_mode": "fixed",
+  "points": [
+    [
+      1655,
+      626
+    ]
+  ],
+  "template_path": "",
+  "match_threshold": 0.85,
+  "poll_interval_ms": 300,
+  "start_hotkey": "<f6>",
+  "start_delay_sec": 0.0,
+  "stop_condition": "none",
+  "max_clicks": 100,
+  "duration_sec": 60.0
+}
