@@ -12,6 +12,7 @@ class AppConfig:
     click_type: str = "single"          # single / double
     interval_ms: int = 100              # 两次点击间隔
     random_jitter_ms: int = 0           # 间隔随机抖动 (0~jitter)
+    bongo_cat_compat_mode: bool = False  # 延长按压时间，让 Bongo Cat 的轮询可以检测到
 
     # ---- 点击位置 ----
     position_mode: str = "fixed"        # fixed / follow / image

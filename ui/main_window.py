@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QGroupBox, QLabel,
     QComboBox, QSpinBox, QDoubleSpinBox, QPushButton, QRadioButton,
     QButtonGroup, QLineEdit, QFileDialog, QListWidget, QSlider, QStatusBar,
-    QMessageBox,
+    QMessageBox, QCheckBox,
 )
 
 import pyautogui
@@ -54,10 +54,13 @@ class MainWindow(QWidget):
         self.cmb_type = QComboBox(); self.cmb_type.addItems(["单击", "双击"])
         self.spin_interval = QSpinBox(); self.spin_interval.setRange(1, 600000); self.spin_interval.setSuffix(" ms")
         self.spin_jitter = QSpinBox(); self.spin_jitter.setRange(0, 60000); self.spin_jitter.setSuffix(" ms")
+        self.chk_bongo_compat = QCheckBox("Bongo Cat 兼容模式")
+        self.chk_bongo_compat.setToolTip("延长鼠标按下时间，使 Bongo Cat 的输入轮询能够检测到点击")
         gl.addWidget(QLabel("按键"), 0, 0); gl.addWidget(self.cmb_button, 0, 1)
         gl.addWidget(QLabel("方式"), 0, 2); gl.addWidget(self.cmb_type, 0, 3)
         gl.addWidget(QLabel("间隔"), 1, 0); gl.addWidget(self.spin_interval, 1, 1)
         gl.addWidget(QLabel("随机抖动"), 1, 2); gl.addWidget(self.spin_jitter, 1, 3)
+        gl.addWidget(self.chk_bongo_compat, 2, 0, 1, 4)
         root.addWidget(g_click)
 
         # --- 点击位置 ---
@@ -140,6 +143,7 @@ class MainWindow(QWidget):
         self.cmb_type.setCurrentIndex(0 if c.click_type == "single" else 1)
         self.spin_interval.setValue(c.interval_ms)
         self.spin_jitter.setValue(c.random_jitter_ms)
+        self.chk_bongo_compat.setChecked(c.bongo_cat_compat_mode)
 
         {"fixed": self.rb_fixed, "follow": self.rb_follow, "image": self.rb_image}\
             .get(c.position_mode, self.rb_fixed).setChecked(True)
@@ -164,6 +168,7 @@ class MainWindow(QWidget):
         c.click_type = "single" if self.cmb_type.currentIndex() == 0 else "double"
         c.interval_ms = self.spin_interval.value()
         c.random_jitter_ms = self.spin_jitter.value()
+        c.bongo_cat_compat_mode = self.chk_bongo_compat.isChecked()
 
         c.position_mode = {0: "fixed", 1: "follow", 2: "image"}[self.pos_group.checkedId()]
         c.points = []

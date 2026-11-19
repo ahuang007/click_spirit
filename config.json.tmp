@@ -3,6 +3,7 @@
   "click_type": "double",
   "interval_ms": 200,
   "random_jitter_ms": 4,
+  "bongo_cat_compat_mode": false,
   "position_mode": "fixed",
   "points": [
     [

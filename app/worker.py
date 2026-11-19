@@ -13,6 +13,11 @@ from . import vision
 pyautogui.PAUSE = 0
 pyautogui.FAILSAFE = True  # 鼠标猛移到屏幕左上角可紧急停止
 
+BONGO_CAT_INITIAL_HOLD_MS = 120
+BONGO_CAT_ACTIVE_HOLD_MS = 40
+BONGO_CAT_RELEASE_MS = 25
+BONGO_CAT_IDLE_THRESHOLD_SEC = 3.0
+
 
 class ClickWorker(QThread):
     clicked = pyqtSignal(int, int)      # 每次点击后发出坐标
@@ -25,17 +30,60 @@ class ClickWorker(QThread):
         self._cfg = config
         self._stop = False
         self._template = None
+        self._last_compat_press_at = None
 
     def stop(self):
         self._stop = True
 
+    def _compat_hold_ms(self):
+        if self._last_compat_press_at is None:
+            return BONGO_CAT_INITIAL_HOLD_MS
+        idle_seconds = time.monotonic() - self._last_compat_press_at
+        if idle_seconds >= BONGO_CAT_IDLE_THRESHOLD_SEC:
+            return BONGO_CAT_INITIAL_HOLD_MS
+        return BONGO_CAT_ACTIVE_HOLD_MS
+
+    def _compat_press(self, button):
+        """保持按下跨过 Bongo Cat 的轮询周期，并确保中途停止时释放鼠标。"""
+        pyautogui.mouseDown(button=button)
+        try:
+            completed = self._sleep_ms(self._compat_hold_ms())
+        finally:
+            # 先绕过 failsafe 释放，再恢复并检查，避免光标在左上角时卡住按键。
+            failsafe_enabled = pyautogui.FAILSAFE
+            pyautogui.FAILSAFE = False
+            try:
+                pyautogui.mouseUp(button=button)
+            finally:
+                pyautogui.FAILSAFE = failsafe_enabled
+                self._last_compat_press_at = time.monotonic()
+            if failsafe_enabled and hasattr(pyautogui, "failSafeCheck"):
+                pyautogui.failSafeCheck()
+        return completed
+
+    def _do_compat_click(self, x, y, button):
+        pyautogui.moveTo(x, y)
+        press_count = 2 if self._cfg.click_type == "double" else 1
+        for press_index in range(press_count):
+            if not self._compat_press(button):
+                return False
+            if press_index + 1 < press_count and not self._sleep_ms(BONGO_CAT_RELEASE_MS):
+                return False
+        return True
+
     def _do_click(self, x, y):
         button = self._cfg.click_button
-        if self._cfg.click_type == "double":
+        if self._cfg.bongo_cat_compat_mode:
+            completed = self._do_compat_click(x, y, button)
+        elif self._cfg.click_type == "double":
             pyautogui.doubleClick(x=x, y=y, button=button)
+            completed = True
         else:
             pyautogui.click(x=x, y=y, button=button)
-        self.clicked.emit(int(x), int(y))
+            completed = True
+        if completed:
+            self.clicked.emit(int(x), int(y))
+        return completed
 
     def _next_target(self, index):
         """根据位置模式返回本次点击坐标；image 模式下返回 None 表示未找到。"""
@@ -56,11 +104,13 @@ class ClickWorker(QThread):
 
     def _sleep_ms(self, ms):
         """可被 stop 中断的睡眠。"""
-        end = time.time() + ms / 1000.0
-        while time.time() < end:
+        end = time.monotonic() + ms / 1000.0
+        while time.monotonic() < end:
             if self._stop:
-                return
-            time.sleep(min(0.02, end - time.time()) if end - time.time() > 0 else 0)
+                return False
+            remaining = end - time.monotonic()
+            time.sleep(min(0.02, remaining) if remaining > 0 else 0)
+        return True
 
     def run(self):
         cfg = self._cfg
@@ -97,7 +147,8 @@ class ClickWorker(QThread):
                 continue
 
             try:
-                self._do_click(*target)
+                if not self._do_click(*target):
+                    break
             except pyautogui.FailSafeException:
                 self.status.emit("已触发紧急停止（鼠标移到左上角）")
                 break
@@ -110,6 +161,8 @@ class ClickWorker(QThread):
             interval = cfg.interval_ms
             if cfg.random_jitter_ms > 0:
                 interval += random.randint(0, cfg.random_jitter_ms)
+            if cfg.bongo_cat_compat_mode:
+                interval = max(interval, BONGO_CAT_RELEASE_MS)
             self._sleep_ms(interval)
 
         self.status.emit("已停止")
